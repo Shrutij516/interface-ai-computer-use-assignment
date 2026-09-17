@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head><title>Open Sub-Account</title></head>
+<body>
+<h1>Open Sub-Account for {{ member.name }} ({{ member_id }})</h1>
+{% if error %}<p>{{ error }}</p>{% endif %}
+<form action="/members/{{ member_id }}/subaccounts/new" method="post">
+<table>
+<tr>
+<td><label>Account Type
+<select name="account_type">
+<option value="">-- Select --</option>
+<option value="Savings">Savings</option>
+<option value="Checking">Checking</option>
+<option value="Money Market">Money Market</option>
+</select>
+</label></td>
+</tr>
+<tr>
+<td><label>Initial Deposit <input type="text" name="initial_deposit"></label></td>
+</tr>
+<tr>
+<td><input type="submit" value="Continue"></td>
+</tr>
+</table>
+</form>
+</body>
+</html>

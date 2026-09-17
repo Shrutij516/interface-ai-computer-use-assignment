@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head><title>Member Detail</title></head>
+<body>
+<h1>Member Detail</h1>
+{% if member %}
+<table>
+<tr><td>Member ID</td><td>{{ member_id }}</td></tr>
+<tr><td>Name</td><td>{{ member.name }}</td></tr>
+<tr><td>Savings Balance</td><td>${{ "%.2f"|format(member.savings_balance) }}</td></tr>
+</table>
+<form action="/members/{{ member_id }}/subaccounts/new" method="get">
+<input type="submit" value="Open Sub-Account">
+</form>
+{% else %}
+<p>No member found</p>
+{% endif %}
+<p><a href="/">Back to search</a></p>
+</body>
+</html>

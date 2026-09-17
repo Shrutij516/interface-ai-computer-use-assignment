@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head><title>Confirm Sub-Account</title></head>
+<body>
+<h1>Confirm Sub-Account Details</h1>
+<table>
+<tr><td>Member</td><td>{{ member.name }} ({{ member_id }})</td></tr>
+<tr><td>Account Type</td><td>{{ account_type }}</td></tr>
+<tr><td>Initial Deposit</td><td>${{ initial_deposit }}</td></tr>
+</table>
+<form action="/members/{{ member_id }}/subaccounts/confirm" method="post">
+<input type="hidden" name="account_type" value="{{ account_type }}">
+<input type="hidden" name="initial_deposit" value="{{ initial_deposit }}">
+<input type="submit" value="Confirm &amp; Submit">
+</form>
+<p><a href="/members/{{ member_id }}/subaccounts/new">Go back and edit</a></p>
+</body>
+</html>
