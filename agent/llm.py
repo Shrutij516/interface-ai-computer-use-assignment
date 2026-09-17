@@ -4,7 +4,7 @@ see agent/discover.py for the loop that drives this."""
 
 import anthropic
 
-MODEL = "claude-opus-5"
+MODEL = "claude-sonnet-5"
 
 TOOL_NAME = "decide_next_action"
 
