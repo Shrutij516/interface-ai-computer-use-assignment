@@ -1,0 +1,65 @@
+{
+  "goal": "search for member 10001 and read their savings balance.",
+  "target_url": "http://127.0.0.1:5000",
+  "run_id": "20260918T023723Z",
+  "success": true,
+  "failure_reason": null,
+  "outputs": {
+    "member_id": "10001",
+    "member_name": "Alice Johnson",
+    "savings_balance": "$15234.56"
+  },
+  "verified_output_keys": [
+    "savings_balance"
+  ],
+  "unverified_output_keys": [
+    "member_id",
+    "member_name"
+  ],
+  "total_steps": 4,
+  "llm_call_count": 4,
+  "step_trace": [
+    {
+      "step_id": "step_0",
+      "action": "type",
+      "locator": {
+        "strategy": "role",
+        "value": "textbox:Member ID"
+      },
+      "output_key": null,
+      "status": "ok"
+    },
+    {
+      "step_id": "step_1",
+      "action": "click",
+      "locator": {
+        "strategy": "role",
+        "value": "button:Search"
+      },
+      "output_key": null,
+      "status": "ok"
+    },
+    {
+      "step_id": "step_2",
+      "action": "extract",
+      "locator": {
+        "strategy": "text",
+        "value": "Savings Balance"
+      },
+      "output_key": "savings_balance",
+      "status": "ok"
+    },
+    {
+      "step_id": "step_3",
+      "action": "done",
+      "locator": null,
+      "output_key": null,
+      "status": "done",
+      "outputs": {
+        "member_id": "10001",
+        "member_name": "Alice Johnson",
+        "savings_balance": "$15234.56"
+      }
+    }
+  ]
+}
