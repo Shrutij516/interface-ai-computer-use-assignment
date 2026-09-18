@@ -5,6 +5,8 @@ evidence/discovery/<run_id>/.
 Run with: python -m agent.discover --goal "..."
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import subprocess
