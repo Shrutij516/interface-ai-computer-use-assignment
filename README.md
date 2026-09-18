@@ -4,9 +4,9 @@ An LLM-driven agent discovers how to accomplish a goal against a real
 (mock) banking app, records what it did as a typed, versioned artifact,
 and replays that artifact deterministically — no LLM in the loop — with
 an explicit error taxonomy, safety allowlist, and human escalation/
-handoff on a hard failure. Built against `interface-ai-project-spec.md`
-(the locked design decisions) for the brief in `Assignment A — Computer-
-Use Automation System.pdf`.
+handoff on a hard failure. Built against `docs/interface-ai-project-spec.md`
+(the locked design decisions) for the brief in `docs/Assignment A —
+Computer-Use Automation System.pdf`.
 
 ```
 agent/        LLM-driven discovery loop (observe -> decide -> act)
