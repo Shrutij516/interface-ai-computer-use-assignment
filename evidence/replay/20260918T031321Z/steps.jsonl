@@ -1,0 +1,5 @@
+{"event": "run_started", "timestamp": "2026-09-18T03:13:21.901129+00:00", "capability_id": "lookup_member_balance", "version": "1.1.0", "inputs_masked": {"member_id": "*0001"}}
+{"step_index": 0, "step_id": "step_0", "timestamp": "2026-09-18T03:13:23.122553+00:00", "action": "type", "locator": {"strategy": "role", "value": "textbox:Member ID"}, "url_before": "http://127.0.0.1:5000/", "result": {"status": "ok", "typed_value_masked": "*0001"}}
+{"step_index": 1, "step_id": "step_1", "timestamp": "2026-09-18T03:13:23.176570+00:00", "action": "click", "locator": {"strategy": "role", "value": "button:Search"}, "url_before": "http://127.0.0.1:5000/", "result": {"status": "ok"}}
+{"step_index": 2, "step_id": "step_2", "timestamp": "2026-09-18T03:13:23.236316+00:00", "action": "extract", "locator": {"strategy": "text", "value": "Savings Balance"}, "url_before": "http://127.0.0.1:5000/members/10001", "result": {"status": "ok", "extracted_value_masked": "*****4.56"}}
+{"checkpoint": true, "timestamp": "2026-09-18T03:13:23.269051+00:00", "result": {"status": "ok", "observed": "resolved value '*****4.56'"}}

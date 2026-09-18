@@ -1,0 +1,27 @@
+{
+  "request_id": "esc_20260918T031359826714Z_87411f",
+  "events": [
+    {
+      "event": "paused",
+      "timestamp": "2026-09-18T03:13:59.874309+00:00",
+      "step_id": "step_1",
+      "reason": "role:button:DoesNotExist -> no element found for role:button:DoesNotExist; role:button:DoesNotExist (retry) -> no element found for role:button:DoesNotExist"
+    },
+    {
+      "event": "human_took_over",
+      "timestamp": "2026-09-18T03:14:00.165640+00:00",
+      "manual_action": {
+        "action": "click",
+        "strategy": "role",
+        "value": "button:Search"
+      },
+      "resolution_note": "Recorded locator drifted (button:DoesNotExist); the real Search button is right there -- clicked it manually."
+    },
+    {
+      "event": "control_returned",
+      "timestamp": "2026-09-18T03:14:00.291605+00:00",
+      "checkpoint_observed": "resolved value '*****4.56'",
+      "final_outcome": "success"
+    }
+  ]
+}

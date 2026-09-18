@@ -26,6 +26,12 @@ or `failure`.
 - After all steps run, `artifact.checkpoint`'s locator is verified before
   any outputs are trusted -- a checkpoint that fails to resolve is a hard
   failure even if every step reported `ok`.
+- On a hard failure (from any of the four sites above), control passes to
+  `escalation/` (spec §8) instead of returning `failure` immediately: the
+  live browser is paused, not closed, and a human gets a chance to fix it
+  on that same session before the run is actually reported as failed. Set
+  `escalate=False` to skip this and get the raw failure result instead.
+  Never triggered for `business_outcome` -- see `escalation/README.md`.
 - Every run's full trace is logged to `evidence/replay/<run_id>/`
   (`steps.jsonl` + `replay_result.json`), same style as
   `agent/discover.py`'s discovery logging. Per spec §9, member IDs and

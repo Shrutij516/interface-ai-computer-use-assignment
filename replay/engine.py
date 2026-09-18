@@ -26,6 +26,7 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
 from artifacts.schema import Artifact, Checkpoint, FailureHandling, Locator, Step
+from escalation import handoff, store as escalation_store
 from replay.masking import mask
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -271,7 +272,16 @@ def run_replay(
     inputs: dict,
     target_url: str = DEFAULT_TARGET_URL,
     run_id: str = None,
+    escalate: bool = True,
+    escalation_poll_interval: float = 0.5,
+    escalation_timeout: float = None,
 ) -> dict:
+    """`escalate` gates spec §8: on a hard failure, pause the live browser
+    (don't close it) and hand off to escalation/ instead of returning
+    `failure` outright. Never triggered for `business_outcome` -- that's
+    a legitimate answer, not a bug. Set False to get the raw, immediate
+    failure result instead (e.g. for testing the replay loop in
+    isolation)."""
     run_id = run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     run_dir = EVIDENCE_ROOT / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -322,6 +332,88 @@ def run_replay(
             page.on("dialog", _on_dialog)
             page.goto(target_url)
 
+            def _handle_hard_failure(step_id: str, expected: str, observed: str) -> dict:
+                if not escalate:
+                    result = _failure_result(artifact, step_id, expected, observed, run_id)
+                    _persist_result(result, result_path)
+                    return result
+
+                _log(
+                    {
+                        "event": "escalating",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "step_id": step_id,
+                        "expected": expected,
+                        "observed": observed,
+                    }
+                )
+
+                resolved = handoff.pause_and_handoff(
+                    page=page,
+                    capability_id=artifact.capability_id,
+                    version=artifact.version,
+                    run_id=run_id,
+                    step_id=step_id,
+                    expected=expected,
+                    observed=observed,
+                    inputs_masked={k: mask(v) for k, v in inputs.items()},
+                    poll_interval=escalation_poll_interval,
+                    timeout=escalation_timeout,
+                )
+                _log(
+                    {
+                        "event": "resumed",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "request_id": resolved["request_id"],
+                        "manual_action": resolved.get("manual_action"),
+                        "resolution_note": resolved.get("resolution_note"),
+                    }
+                )
+
+                checkpoint_ok, checkpoint_observed = _verify_checkpoint(page, artifact.checkpoint)
+                if checkpoint_ok:
+                    for s in extract_steps:
+                        output_name = artifact.outputs[extract_steps.index(s)].name
+                        if output_name in extracted:
+                            continue
+                        try:
+                            extracted[output_name] = _run_step_with_recovery(page, s, inputs, recovered_from)
+                        except LocatorNotFound as exc:
+                            checkpoint_ok = False
+                            checkpoint_observed = f"post-handoff extract for step {s.step_id} still failed: {exc}"
+                            break
+
+                _log(
+                    {
+                        "event": "checkpoint_after_handoff",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "result": {"status": "ok" if checkpoint_ok else "hard_failure", "observed": checkpoint_observed},
+                    }
+                )
+
+                final_outcome = "success" if checkpoint_ok else "failure"
+                escalation_store.finalize(resolved["request_id"], final_outcome, checkpoint_observed)
+
+                if checkpoint_ok:
+                    result = {
+                        "outcome": "success",
+                        "capability_id": artifact.capability_id,
+                        "version": artifact.version,
+                        "run_id": run_id,
+                        "outputs": extracted,
+                        "recovered_from": recovered_from,
+                        "escalation": {
+                            "request_id": resolved["request_id"],
+                            "manual_action": resolved.get("manual_action"),
+                            "resolution_note": resolved.get("resolution_note"),
+                        },
+                    }
+                else:
+                    result = _failure_result(artifact, step_id, expected, checkpoint_observed, run_id)
+                    result["escalation"] = {"request_id": resolved["request_id"], "resolution_note": resolved.get("resolution_note")}
+                _persist_result(result, result_path)
+                return result
+
             try:
                 for step_index, step in enumerate(artifact.steps):
                     entry = {
@@ -338,22 +430,16 @@ def run_replay(
                     except HardFailure as hf:
                         entry["result"] = {"status": "hard_failure", "expected": hf.expected, "observed": hf.observed}
                         _log(entry)
-                        result = _failure_result(artifact, hf.step_id, hf.expected, hf.observed, run_id)
-                        _persist_result(result, result_path)
-                        return result
+                        return _handle_hard_failure(hf.step_id, hf.expected, hf.observed)
                     except LocatorNotFound as exc:
                         entry["result"] = {"status": "hard_failure", "message": str(exc)}
                         _log(entry)
-                        result = _failure_result(
-                            artifact,
+                        return _handle_hard_failure(
                             step.step_id,
                             f"locator (and fallback) for {step.action} step to resolve: "
                             f"{step.locator.strategy}:{step.locator.value}",
                             str(exc),
-                            run_id,
                         )
-                        _persist_result(result, result_path)
-                        return result
 
                     if step.action == "type" and result_value is not None:
                         entry["result"] = {"status": "ok", "typed_value_masked": mask(result_value)}
@@ -378,10 +464,9 @@ def run_replay(
                         )
                         if kind == "business_outcome":
                             result = _business_outcome_result(which, details, step.step_id, run_id)
-                        else:
-                            result = _failure_result(artifact, step.step_id, "no hard-failure page signal present", details, run_id)
-                        _persist_result(result, result_path)
-                        return result
+                            _persist_result(result, result_path)
+                            return result
+                        return _handle_hard_failure(step.step_id, "no hard-failure page signal present", details)
 
                 checkpoint_ok, checkpoint_observed = _verify_checkpoint(page, artifact.checkpoint)
                 _log(
@@ -392,9 +477,7 @@ def run_replay(
                     }
                 )
                 if not checkpoint_ok:
-                    result = _failure_result(artifact, "checkpoint", artifact.checkpoint.description, checkpoint_observed, run_id)
-                    _persist_result(result, result_path)
-                    return result
+                    return _handle_hard_failure("checkpoint", artifact.checkpoint.description, checkpoint_observed)
             finally:
                 browser.close()
     finally:
