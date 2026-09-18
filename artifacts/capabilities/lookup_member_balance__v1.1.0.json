@@ -1,0 +1,76 @@
+{
+  "capability_id": "lookup_member_balance",
+  "version": "1.1.0",
+  "description": "Look up a credit union member by ID and read their current savings balance, recorded from verified discovery run 20260918T023723Z.",
+  "inputs": [
+    {
+      "name": "member_id",
+      "type": "string",
+      "description": "The member ID to search for.",
+      "required": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "savings_balance",
+      "type": "string",
+      "description": "The member's current savings balance, as displayed (e.g. '$15234.56').",
+      "required": true
+    }
+  ],
+  "steps": [
+    {
+      "step_id": "step_0",
+      "action": "type",
+      "locator": {
+        "strategy": "role",
+        "value": "textbox:Member ID",
+        "fallback": null
+      },
+      "on_failure": {
+        "type": "hard_failure",
+        "message": "Could not enter text into the target field (textbox:Member ID)."
+      },
+      "expected_signals": null
+    },
+    {
+      "step_id": "step_1",
+      "action": "click",
+      "locator": {
+        "strategy": "role",
+        "value": "button:Search",
+        "fallback": null
+      },
+      "on_failure": {
+        "type": "hard_failure",
+        "message": "Could not click the target element (button:Search)."
+      },
+      "expected_signals": null
+    },
+    {
+      "step_id": "step_2",
+      "action": "extract",
+      "locator": {
+        "strategy": "text",
+        "value": "Savings Balance",
+        "fallback": null
+      },
+      "on_failure": {
+        "type": "hard_failure",
+        "message": "Expected value not found for extraction (Savings Balance); page structure may have changed."
+      },
+      "expected_signals": null
+    }
+  ],
+  "checkpoint": {
+    "description": "Savings balance value extracted from the member detail page.",
+    "locator": {
+      "strategy": "text",
+      "value": "Savings Balance",
+      "fallback": null
+    },
+    "expected_signals": [
+      "extracted savings_balance is a non-empty string"
+    ]
+  }
+}
