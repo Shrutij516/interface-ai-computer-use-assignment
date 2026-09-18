@@ -18,7 +18,14 @@ as the primary signal, a screenshot as backup, per iteration.
   iterations, and logs every step to `evidence/discovery/<run_id>/`
   (`steps.jsonl` per-step log + screenshots + `run_summary.json` with a
   `step_trace` shaped close to `artifacts/schema.py`'s `Step`/`Locator`
-  fields — artifact construction itself isn't wired up yet).
+  fields — artifact construction itself isn't wired up yet). `step_trace`
+  has exactly one entry per step, including the terminal `done`/error step
+  (`status` is `ok`/`done`/`error`), so its length always equals
+  `total_steps`. The `done` step's self-reported `outputs` are not blindly
+  trusted: `run_summary.json` also reports `verified_output_keys` (backed by
+  a logged `extract` step) and `unverified_output_keys` (present only
+  because the model typed them into `done`, e.g. a value it read off the
+  same page without a dedicated extract call).
 
 No thinking (adaptive thinking is disabled for this call — it's a single
 bounded decision, not a reasoning task, and disabling it keeps forced tool

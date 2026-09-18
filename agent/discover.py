@@ -58,8 +58,10 @@ def _start_mock_bank(target_url: str) -> subprocess.Popen:
     raise RuntimeError(f"mock_bank did not become reachable at {target_url} within 15s")
 
 
-def _decision_to_locator(decision: dict) -> dict:
+def _decision_to_locator(decision: dict) -> dict | None:
     action = decision.get("action")
+    if action == "done":
+        return None
     if action == "navigate":
         return {"strategy": "url", "value": decision.get("url", "")}
     if action == "extract":
@@ -89,7 +91,8 @@ def run_discovery(goal: str, target_url: str = DEFAULT_TARGET_URL, max_steps: in
 
     history = []
     step_trace = []
-    outputs = {}
+    extracted_outputs = {}
+    reported_outputs = {}
     llm_call_count = 0
     success = False
     failure_reason = None
@@ -118,13 +121,26 @@ def run_discovery(goal: str, target_url: str = DEFAULT_TARGET_URL, max_steps: in
                         "accessibility_tree": state["accessibility_tree"],
                         "decision": decision,
                     }
+                    # One trace entry per step, whatever the outcome, so
+                    # step_trace always has exactly `total_steps` entries and
+                    # every action the agent took (including the terminal
+                    # done/error step) is accounted for.
+                    trace_entry = {
+                        "step_id": f"step_{step_index}",
+                        "action": decision["action"],
+                        "locator": _decision_to_locator(decision),
+                        "output_key": decision.get("output_key"),
+                    }
 
                     if decision["action"] == "done":
                         success = bool(decision.get("goal_met"))
-                        outputs = decision.get("outputs", {}) or {}
+                        reported_outputs = decision.get("outputs", {}) or {}
                         log_entry["result"] = {"status": "done", "goal_met": success}
                         _append_log(log_path, log_entry)
                         history.append(f"Step {step_index}: done (goal_met={success})")
+                        trace_entry["status"] = "done"
+                        trace_entry["outputs"] = reported_outputs
+                        step_trace.append(trace_entry)
                         break
 
                     try:
@@ -135,22 +151,19 @@ def run_discovery(goal: str, target_url: str = DEFAULT_TARGET_URL, max_steps: in
                         target_desc = decision.get("name") or decision.get("url") or decision.get("label") or ""
                         history.append(f"Step {step_index}: {decision['action']} ({target_desc}) -> ok")
 
-                        step_trace.append(
-                            {
-                                "step_id": f"step_{step_index}",
-                                "action": decision["action"],
-                                "locator": _decision_to_locator(decision),
-                                "output_key": decision.get("output_key"),
-                            }
-                        )
+                        trace_entry["status"] = "ok"
+                        step_trace.append(trace_entry)
                         if decision["action"] == "extract" and decision.get("output_key"):
-                            outputs[decision["output_key"]] = result.get("value")
+                            extracted_outputs[decision["output_key"]] = result.get("value")
 
                     except ActionError as exc:
                         log_entry["result"] = {"status": "error", "message": str(exc)}
                         _append_log(log_path, log_entry)
                         history.append(f"Step {step_index}: {decision['action']} -> ERROR: {exc}")
                         failure_reason = str(exc)
+                        trace_entry["status"] = "error"
+                        trace_entry["error"] = str(exc)
+                        step_trace.append(trace_entry)
                         break
                 else:
                     failure_reason = f"max_steps ({max_steps}) exceeded without the agent reporting done"
@@ -161,6 +174,14 @@ def run_discovery(goal: str, target_url: str = DEFAULT_TARGET_URL, max_steps: in
             mock_bank_proc.terminate()
             mock_bank_proc.wait(timeout=5)
 
+    # Extracted values (backed by a logged `extract` step) are trusted over
+    # whatever the model additionally typed into `done`'s outputs by hand;
+    # any key present only in the model's self-reported outputs had no
+    # extract step behind it and is called out explicitly rather than
+    # silently blended in as if it were verified.
+    outputs = {**reported_outputs, **extracted_outputs}
+    unverified_output_keys = sorted(set(reported_outputs) - set(extracted_outputs))
+
     summary = {
         "goal": goal,
         "target_url": target_url,
@@ -168,6 +189,8 @@ def run_discovery(goal: str, target_url: str = DEFAULT_TARGET_URL, max_steps: in
         "success": success,
         "failure_reason": failure_reason,
         "outputs": outputs,
+        "verified_output_keys": sorted(extracted_outputs.keys()),
+        "unverified_output_keys": unverified_output_keys,
         "total_steps": step_count,
         "llm_call_count": llm_call_count,
         "step_trace": step_trace,
