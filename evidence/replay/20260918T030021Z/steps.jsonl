@@ -1,0 +1,4 @@
+{"event": "run_started", "timestamp": "2026-09-18T03:00:21.508833+00:00", "capability_id": "lookup_member_balance", "version": "1.1.0", "inputs_masked": {"member_id": "*0404"}}
+{"step_index": 0, "step_id": "step_0", "timestamp": "2026-09-18T03:00:22.268871+00:00", "action": "type", "locator": {"strategy": "role", "value": "textbox:Member ID"}, "url_before": "http://127.0.0.1:5000/", "result": {"status": "ok", "typed_value_masked": "*0404"}}
+{"step_index": 1, "step_id": "step_1", "timestamp": "2026-09-18T03:00:22.288100+00:00", "action": "click", "locator": {"strategy": "role", "value": "button:Search"}, "url_before": "http://127.0.0.1:5000/", "result": {"status": "ok"}}
+{"step_index": 1, "step_id": "step_1", "timestamp": "2026-09-18T03:00:22.335978+00:00", "signal_check": {"kind": "business_outcome", "which": "not_found", "details": "No member found for the given member ID."}}
