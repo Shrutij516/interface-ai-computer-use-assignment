@@ -43,16 +43,27 @@ from datetime import datetime, timezone
 from playwright.sync_api import Page
 
 from escalation import store
+from safety import policy as safety
 
 
 def _apply_manual_action(page: Page, manual_action: dict) -> None:
     """Carries out a human-described corrective action on the live page.
     Deliberately small: only what a mocked operator surface can plausibly
     describe without a real co-browsing UI (spec §8 says the interface is
-    mocked, not the session it acts on)."""
+    mocked, not the session it acts on).
+
+    Goes through the same safety.policy gate as every other action in
+    this project (agent/executor.py, replay/engine.py) -- an operator
+    "resolving" a paused run is still taking a real action on the live
+    session, and skipping the allowlist/confirmation check here would be
+    exactly the auto-confirm loophole spec §9 rules out: a human could
+    otherwise use a manual_action to push through the very risky action
+    a safety refusal had just blocked."""
     action = manual_action.get("action")
     strategy = manual_action.get("strategy")
     value = manual_action.get("value")
+
+    safety.check_allowlist(action, page.url)
 
     if strategy == "role":
         role, _, name = value.partition(":")
@@ -65,6 +76,9 @@ def _apply_manual_action(page: Page, manual_action: dict) -> None:
         raise ValueError(f"unsupported manual_action strategy: {strategy!r}")
 
     if action == "click":
+        destination = safety.resolve_click_destination(target.first)
+        if safety.is_risky_route(destination):
+            safety.check_risky_action_confirmed(page.locator("body").inner_text())
         target.first.click()
         page.wait_for_load_state("load")
     elif action == "type":

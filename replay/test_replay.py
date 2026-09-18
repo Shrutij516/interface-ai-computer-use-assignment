@@ -4,7 +4,7 @@ Replays the real, evidence-backed lookup_member_balance v1.1.0 artifact
 twice against a live mock_bank:
   - member_id=10001: a known member -> expect `success`, and the
     extracted savings_balance should match discovery run
-    evidence/discovery/20260918T023723Z/'s real output ($15234.56).
+    evidence/discovery/20260918T035315Z/'s real output ($15234.56).
   - member_id=40404: mock_bank's documented not-found test ID
     (mock_bank/data.py's NOT_FOUND_TEST_ID) -> expect `business_outcome`
     ("not_found"), not a crash and not a false success.

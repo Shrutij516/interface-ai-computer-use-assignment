@@ -27,7 +27,8 @@ from playwright.sync_api import sync_playwright
 
 from artifacts.schema import Artifact, Checkpoint, FailureHandling, Locator, Step
 from escalation import handoff, store as escalation_store
-from replay.masking import mask
+from safety import policy as safety
+from safety.masking import mask, mask_url
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_TARGET_URL = "http://127.0.0.1:5000"
@@ -162,7 +163,11 @@ def _apply_strategy_once(page: Page, step: Step, locator: Locator, inputs: dict)
     action = step.action
 
     if action == "navigate":
-        response = page.goto(urljoin(page.url, locator.value), timeout=ACTION_TIMEOUT_MS)
+        destination = urljoin(page.url, locator.value)
+        safety.check_allowlist(action, page.url, destination)
+        if safety.is_risky_route(destination):
+            safety.check_risky_action_confirmed(page.locator("body").inner_text())
+        response = page.goto(destination, timeout=ACTION_TIMEOUT_MS)
         if response is not None and response.status >= 400:
             raise HardFailure(step.step_id, f"navigate to {locator.value} (2xx/3xx)", f"HTTP {response.status}")
         return None
@@ -173,16 +178,23 @@ def _apply_strategy_once(page: Page, step: Step, locator: Locator, inputs: dict)
         return None
 
     if action == "click":
-        _resolve_clickable(page, locator).click(timeout=ACTION_TIMEOUT_MS)
+        safety.check_allowlist(action, page.url)
+        target = _resolve_clickable(page, locator)
+        destination = safety.resolve_click_destination(target)
+        if safety.is_risky_route(destination):
+            safety.check_risky_action_confirmed(page.locator("body").inner_text())
+        target.click(timeout=ACTION_TIMEOUT_MS)
         page.wait_for_load_state("load")
         return None
 
     if action == "type":
+        safety.check_allowlist(action, page.url)
         text_value = _match_input_value(locator, inputs)
         _resolve_clickable(page, locator).fill(text_value, timeout=ACTION_TIMEOUT_MS)
         return text_value
 
     if action in ("extract", "check"):
+        safety.check_allowlist(action, page.url)
         if locator.strategy == "text":
             return _extract_by_label(page, locator.value)
         if locator.strategy == "css":
@@ -422,11 +434,31 @@ def run_replay(
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                         "action": step.action,
                         "locator": {"strategy": step.locator.strategy, "value": step.locator.value},
-                        "url_before": page.url,
+                        "url_before": mask_url(page.url),
                     }
 
                     try:
                         result_value = _run_step_with_recovery(page, step, inputs, recovered_from)
+                    except safety.SafetyViolation as exc:
+                        # Never escalated: a safety refusal must not be
+                        # overridable via a human-described manual_action
+                        # in the same handoff mechanism that fixes UI
+                        # drift -- that would let a "resolve" bypass the
+                        # allowlist/confirmation gate it's blocking.
+                        entry["result"] = {"status": "blocked_by_safety", "reason": str(exc)}
+                        _log(entry)
+                        result = {
+                            "outcome": "failure",
+                            "capability_id": artifact.capability_id,
+                            "version": artifact.version,
+                            "run_id": run_id,
+                            "step_id": step.step_id,
+                            "blocked_by_safety": True,
+                            "expected": "an action within the allowlist and, if risky, a confirmed checkpoint",
+                            "observed": str(exc),
+                        }
+                        _persist_result(result, result_path)
+                        return result
                     except HardFailure as hf:
                         entry["result"] = {"status": "hard_failure", "expected": hf.expected, "observed": hf.observed}
                         _log(entry)

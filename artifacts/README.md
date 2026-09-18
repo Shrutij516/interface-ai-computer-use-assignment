@@ -31,7 +31,7 @@ artifact entirely:
   scaffolding, not evidence.
 - **`v1.1.0`** is the real, evidence-backed capability, produced by
   `from_discovery.py`'s `discovery_run_to_artifact()` from an actual
-  LLM-driven discovery run (`evidence/discovery/20260918T023723Z/`). Its
+  LLM-driven discovery run (`evidence/discovery/20260918T035315Z/`). Its
   3 steps and single `savings_balance` output are exactly what that run
   did and verified — nothing hand-added. `member_id` and `member_name`
   are deliberately absent from its outputs because the run's own

@@ -26,18 +26,29 @@ or `failure`.
 - After all steps run, `artifact.checkpoint`'s locator is verified before
   any outputs are trusted -- a checkpoint that fails to resolve is a hard
   failure even if every step reported `ok`.
-- On a hard failure (from any of the four sites above), control passes to
-  `escalation/` (spec §8) instead of returning `failure` immediately: the
-  live browser is paused, not closed, and a human gets a chance to fix it
-  on that same session before the run is actually reported as failed. Set
-  `escalate=False` to skip this and get the raw failure result instead.
-  Never triggered for `business_outcome` -- see `escalation/README.md`.
+- Before every action, `safety.policy` (spec §9) checks the action type
+  and URL against the allowlist, and, for a click/navigate whose real
+  destination is a known irreversible route, that the current page
+  actually shows a confirmation screen -- never auto-confirmed. A
+  refusal is a hard stop returned as `{"outcome": "failure",
+  "blocked_by_safety": true, ...}` and does **not** go through
+  escalation (a human "resolving" a safety block would defeat the
+  point). See `safety/README.md`.
+- On a hard failure (from any of the four sites above -- distinct from a
+  safety refusal), control passes to `escalation/` (spec §8) instead of
+  returning `failure` immediately: the live browser is paused, not
+  closed, and a human gets a chance to fix it on that same session
+  before the run is actually reported as failed. Set `escalate=False` to
+  skip this and get the raw failure result instead. Never triggered for
+  `business_outcome` -- see `escalation/README.md`.
 - Every run's full trace is logged to `evidence/replay/<run_id>/`
   (`steps.jsonl` + `replay_result.json`), same style as
   `agent/discover.py`'s discovery logging. Per spec §9, member IDs and
-  balances are masked (last 4 characters visible) in everything written
-  to disk; the real values only exist in the dict `run_replay` returns to
-  its Python caller, for the duration of that call.
+  balances (`safety/masking.py`'s `mask()`, shared with `agent/`) are
+  masked (last 4 characters visible) in everything written to disk,
+  including member IDs embedded in logged URLs (`mask_url()`); the real
+  values only exist in the dict `run_replay` returns to its Python
+  caller, for the duration of that call.
 
 **Known schema gaps** (worth closing before a second capability exists):
 `Step` has no field for which input parameter a `type` step should fill,
@@ -51,7 +62,7 @@ clear error rather than guessing if that 1:1 assumption doesn't hold.
 ## Replay check
 
 No LLM, no discovery loop -- replays the real `lookup_member_balance`
-v1.1.0 artifact (from `evidence/discovery/20260918T023723Z/`) against a
+v1.1.0 artifact (from `evidence/discovery/20260918T035315Z/`) against a
 live mock_bank, once with a known member ID (expect `success`) and once
 with mock_bank's documented not-found ID (expect `business_outcome`):
 

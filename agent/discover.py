@@ -21,9 +21,10 @@ from urllib.parse import urljoin
 import anthropic
 from playwright.sync_api import sync_playwright
 
-from agent.executor import ActionError, execute_action
+from agent.executor import ActionError, SafetyBlocked, execute_action
 from agent.llm import decide_next_action
 from agent.perception import capture_state
+from safety.masking import mask, mask_url
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_TARGET_URL = "http://127.0.0.1:5000"
@@ -76,6 +77,47 @@ def _append_log(log_path: Path, entry: dict) -> None:
         f.write(json.dumps(entry) + "\n")
 
 
+def _masked_log_entry(entry: dict) -> dict:
+    """Same redaction replay/engine.py applies to its own logs (spec §9):
+    member IDs/balances masked (last 4 chars visible) in anything written
+    to evidence/discovery/, both in the decision that was made and in
+    what executing it returned. Screenshots and the raw accessibility
+    tree are the one exception -- like escalation's screenshots, they're
+    an unavoidable literal capture of whatever's on screen, not a
+    structured field this module can selectively redact."""
+    masked = dict(entry)
+    if "url_before" in masked:
+        masked["url_before"] = mask_url(masked["url_before"])
+    if "decision" in masked:
+        decision = dict(masked["decision"])
+        if decision.get("text") is not None:
+            decision["text"] = mask(decision["text"])
+        if decision.get("outputs"):
+            decision["outputs"] = {k: mask(v) for k, v in decision["outputs"].items()}
+        masked["decision"] = decision
+    if "result" in masked:
+        result = dict(masked["result"])
+        if "value" in result:
+            result["value"] = mask(result["value"])
+        if "url_after" in result:
+            result["url_after"] = mask_url(result["url_after"])
+        masked["result"] = result
+    return masked
+
+
+def _masked_summary(summary: dict) -> dict:
+    masked = dict(summary)
+    masked["outputs"] = {k: mask(v) for k, v in summary["outputs"].items()}
+    masked_trace = []
+    for entry in summary["step_trace"]:
+        entry = dict(entry)
+        if entry.get("outputs"):
+            entry["outputs"] = {k: mask(v) for k, v in entry["outputs"].items()}
+        masked_trace.append(entry)
+    masked["step_trace"] = masked_trace
+    return masked
+
+
 def run_discovery(goal: str, target_url: str = DEFAULT_TARGET_URL, max_steps: int = DEFAULT_MAX_STEPS) -> dict:
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     run_dir = EVIDENCE_ROOT / run_id
@@ -98,6 +140,7 @@ def run_discovery(goal: str, target_url: str = DEFAULT_TARGET_URL, max_steps: in
     llm_call_count = 0
     success = False
     failure_reason = None
+    blocked_by_safety = False
     step_count = 0
 
     try:
@@ -138,7 +181,7 @@ def run_discovery(goal: str, target_url: str = DEFAULT_TARGET_URL, max_steps: in
                         success = bool(decision.get("goal_met"))
                         reported_outputs = decision.get("outputs", {}) or {}
                         log_entry["result"] = {"status": "done", "goal_met": success}
-                        _append_log(log_path, log_entry)
+                        _append_log(log_path, _masked_log_entry(log_entry))
                         history.append(f"Step {step_index}: done (goal_met={success})")
                         trace_entry["status"] = "done"
                         trace_entry["outputs"] = reported_outputs
@@ -148,7 +191,7 @@ def run_discovery(goal: str, target_url: str = DEFAULT_TARGET_URL, max_steps: in
                     try:
                         result = execute_action(page, decision)
                         log_entry["result"] = {"status": "ok", **result}
-                        _append_log(log_path, log_entry)
+                        _append_log(log_path, _masked_log_entry(log_entry))
 
                         target_desc = decision.get("name") or decision.get("url") or decision.get("label") or ""
                         history.append(f"Step {step_index}: {decision['action']} ({target_desc}) -> ok")
@@ -158,9 +201,22 @@ def run_discovery(goal: str, target_url: str = DEFAULT_TARGET_URL, max_steps: in
                         if decision["action"] == "extract" and decision.get("output_key"):
                             extracted_outputs[decision["output_key"]] = result.get("value")
 
+                    except SafetyBlocked as exc:
+                        # Refused, never retried, never escalated to the
+                        # LLM to "try again" -- a hard stop per spec §9.
+                        log_entry["result"] = {"status": "blocked_by_safety", "reason": str(exc)}
+                        _append_log(log_path, _masked_log_entry(log_entry))
+                        history.append(f"Step {step_index}: {decision['action']} -> BLOCKED_BY_SAFETY: {exc}")
+                        failure_reason = str(exc)
+                        blocked_by_safety = True
+                        trace_entry["status"] = "blocked_by_safety"
+                        trace_entry["reason"] = str(exc)
+                        step_trace.append(trace_entry)
+                        break
+
                     except ActionError as exc:
                         log_entry["result"] = {"status": "error", "message": str(exc)}
-                        _append_log(log_path, log_entry)
+                        _append_log(log_path, _masked_log_entry(log_entry))
                         history.append(f"Step {step_index}: {decision['action']} -> ERROR: {exc}")
                         failure_reason = str(exc)
                         trace_entry["status"] = "error"
@@ -190,6 +246,7 @@ def run_discovery(goal: str, target_url: str = DEFAULT_TARGET_URL, max_steps: in
         "run_id": run_id,
         "success": success,
         "failure_reason": failure_reason,
+        "blocked_by_safety": blocked_by_safety,
         "outputs": outputs,
         "verified_output_keys": sorted(extracted_outputs.keys()),
         "unverified_output_keys": unverified_output_keys,
@@ -197,8 +254,11 @@ def run_discovery(goal: str, target_url: str = DEFAULT_TARGET_URL, max_steps: in
         "llm_call_count": llm_call_count,
         "step_trace": step_trace,
     }
-    summary_path.write_text(json.dumps(summary, indent=2))
-    print(json.dumps(summary, indent=2))
+    # Persisted/printed copy is masked per spec §9; the raw dict returned
+    # to the Python caller keeps real values in memory for this run only.
+    masked_summary = _masked_summary(summary)
+    summary_path.write_text(json.dumps(masked_summary, indent=2))
+    print(json.dumps(masked_summary, indent=2))
     return summary
 
 

@@ -6,7 +6,7 @@ The failure is injected deliberately: a copy of the real, evidence-backed
 lookup_member_balance v1.1.0 artifact has its "click Search" step's
 locator corrupted to a button that doesn't exist. Replaying it for member
 10001 (a real member who would otherwise succeed, per
-evidence/discovery/20260918T023723Z/ and evidence/replay/) hits a hard
+evidence/discovery/20260918T035315Z/ and evidence/replay/) hits a hard
 failure at that step: the recorded locator can't be resolved and there's
 no fallback.
 
