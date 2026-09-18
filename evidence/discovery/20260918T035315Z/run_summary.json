@@ -1,13 +1,14 @@
 {
   "goal": "search for member 10001 and read their savings balance.",
   "target_url": "http://127.0.0.1:5000",
-  "run_id": "20260918T023723Z",
+  "run_id": "20260918T035315Z",
   "success": true,
   "failure_reason": null,
+  "blocked_by_safety": false,
   "outputs": {
-    "member_id": "10001",
-    "member_name": "Alice Johnson",
-    "savings_balance": "$15234.56"
+    "member_id": "*0001",
+    "member_name": "*********nson",
+    "savings_balance": "*****4.56"
   },
   "verified_output_keys": [
     "savings_balance"
@@ -56,9 +57,9 @@
       "output_key": null,
       "status": "done",
       "outputs": {
-        "member_id": "10001",
-        "member_name": "Alice Johnson",
-        "savings_balance": "$15234.56"
+        "member_id": "*0001",
+        "member_name": "*********nson",
+        "savings_balance": "*****4.56"
       }
     }
   ]
