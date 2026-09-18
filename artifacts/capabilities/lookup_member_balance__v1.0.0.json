@@ -1,0 +1,173 @@
+{
+  "capability_id": "lookup_member_balance",
+  "version": "1.0.0",
+  "description": "Look up a credit union member by ID and read their current savings balance.",
+  "inputs": [
+    {
+      "name": "member_id",
+      "type": "string",
+      "description": "The member ID to search for.",
+      "required": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "found",
+      "type": "boolean",
+      "description": "Whether the member was found.",
+      "required": true
+    },
+    {
+      "name": "member_name",
+      "type": "string",
+      "description": "The member's full name.",
+      "required": false
+    },
+    {
+      "name": "savings_balance",
+      "type": "number",
+      "description": "The member's current savings balance in USD.",
+      "required": false
+    }
+  ],
+  "steps": [
+    {
+      "step_id": "navigate_search",
+      "action": "navigate",
+      "locator": {
+        "strategy": "url",
+        "value": "/",
+        "fallback": null
+      },
+      "on_failure": {
+        "type": "hard_failure",
+        "message": "Could not load the member search page."
+      },
+      "expected_signals": null
+    },
+    {
+      "step_id": "enter_member_id",
+      "action": "type",
+      "locator": {
+        "strategy": "role",
+        "value": "textbox:Member ID",
+        "fallback": {
+          "strategy": "css",
+          "value": "input[name='member_id']",
+          "fallback": null
+        }
+      },
+      "on_failure": {
+        "type": "hard_failure",
+        "message": "Member ID input field not found."
+      },
+      "expected_signals": null
+    },
+    {
+      "step_id": "submit_search",
+      "action": "click",
+      "locator": {
+        "strategy": "role",
+        "value": "button:Search",
+        "fallback": {
+          "strategy": "css",
+          "value": "input[type='submit']",
+          "fallback": null
+        }
+      },
+      "on_failure": {
+        "type": "hard_failure",
+        "message": "Search submit button not found."
+      },
+      "expected_signals": null
+    },
+    {
+      "step_id": "wait_for_detail_page",
+      "action": "wait",
+      "locator": {
+        "strategy": "url",
+        "value": "/members/*",
+        "fallback": null
+      },
+      "on_failure": {
+        "type": "recoverable",
+        "message": "Member detail page took too long to load; retry once."
+      },
+      "expected_signals": [
+        "url matches /members/{member_id}",
+        "page title is 'Member Detail'"
+      ]
+    },
+    {
+      "step_id": "check_member_found",
+      "action": "check",
+      "locator": {
+        "strategy": "css",
+        "value": "table tr:nth-child(3) td:nth-child(2)",
+        "fallback": {
+          "strategy": "text",
+          "value": "Savings Balance",
+          "fallback": null
+        }
+      },
+      "on_failure": {
+        "type": "business_outcome",
+        "message": "No member found for the given member ID."
+      },
+      "expected_signals": [
+        "'No member found' text is absent"
+      ]
+    },
+    {
+      "step_id": "extract_member_name",
+      "action": "extract",
+      "locator": {
+        "strategy": "css",
+        "value": "table tr:nth-child(2) td:nth-child(2)",
+        "fallback": {
+          "strategy": "text",
+          "value": "Name",
+          "fallback": null
+        }
+      },
+      "on_failure": {
+        "type": "hard_failure",
+        "message": "Expected member name cell not found; page structure may have changed."
+      },
+      "expected_signals": null
+    },
+    {
+      "step_id": "extract_savings_balance",
+      "action": "extract",
+      "locator": {
+        "strategy": "css",
+        "value": "table tr:nth-child(3) td:nth-child(2)",
+        "fallback": {
+          "strategy": "text",
+          "value": "Savings Balance",
+          "fallback": null
+        }
+      },
+      "on_failure": {
+        "type": "hard_failure",
+        "message": "Expected savings balance cell not found; page structure may have changed."
+      },
+      "expected_signals": null
+    }
+  ],
+  "checkpoint": {
+    "description": "Member detail page loaded with a savings balance value present.",
+    "locator": {
+      "strategy": "css",
+      "value": "table tr:nth-child(3) td:nth-child(2)",
+      "fallback": {
+        "strategy": "text",
+        "value": "Savings Balance",
+        "fallback": null
+      }
+    },
+    "expected_signals": [
+      "extracted savings_balance is a valid non-negative number"
+    ]
+  }
+}

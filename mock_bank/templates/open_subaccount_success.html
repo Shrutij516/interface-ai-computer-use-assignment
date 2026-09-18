@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head><title>Sub-Account Created</title></head>
+<body>
+<h1>Sub-Account Created</h1>
+<table>
+<tr><td>Member</td><td>{{ member.name }} ({{ member_id }})</td></tr>
+<tr><td>New Account Number</td><td>{{ sub_account.account_number }}</td></tr>
+<tr><td>Account Type</td><td>{{ sub_account.account_type }}</td></tr>
+<tr><td>Initial Deposit</td><td>${{ "%.2f"|format(sub_account.initial_deposit) }}</td></tr>
+</table>
+<p><a href="/members/{{ member_id }}">Back to member detail</a></p>
+</body>
+</html>

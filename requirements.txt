@@ -1,0 +1,4 @@
+playwright
+anthropic
+flask
+pydantic
